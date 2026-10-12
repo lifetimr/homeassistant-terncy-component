@@ -34,7 +34,11 @@ else:
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.typing import StateType, UndefinedType
 
-from ..const import EVENT_ENTITY_BUTTON_EVENTS, HAS_EVENT_PLATFORM
+from ..const import (
+    ATTR_DIAL_ANGLE,
+    EVENT_ENTITY_BUTTON_EVENTS,
+    HAS_EVENT_PLATFORM,
+)
 
 # https://developers.home-assistant.io/blog/2023/12/11/entity-description-changes
 FROZEN_ENTITY_DESCRIPTION = MAJOR_VERSION >= 2024
@@ -58,6 +62,9 @@ class TerncyEntityDescription(EntityDescription):
 
     required_attrs: list[str] | None = None
     """需要的属性，如果没有这些属性，就不创建实体"""
+
+    requires_mqtt: bool = False
+    """实体依赖可选的 /ws/mqtt 侧信道；未配置时跳过创建。"""
 
 
 # region Binary Sensor
@@ -195,6 +202,23 @@ class BatteryDescription(TerncySensorDescription):
     state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     suggested_display_precision: int = 0
     value_attr: str = "battery"
+
+
+@dataclass(frozen=FROZEN_ENTITY_DESCRIPTION, kw_only=True)
+class DialAngleDescription(TerncySensorDescription):
+    """旋钮最近一次旋转的角度（带符号，符号表示方向）。
+
+    数据来自 hub 的 /ws/mqtt 侧信道（AttrID 33 last-dial-angle），
+    /ws/json 通道既不上报该属性，其 rotation 事件里也没有角度。
+    """
+
+    key: str = "dial_angle"
+    sub_key: str = "dial_angle"
+    translation_key: str = "dial_angle"
+    icon: str = "mdi:rotate-right"
+    state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+    value_attr: str = ATTR_DIAL_ANGLE
+    requires_mqtt: bool = True
 
 
 # endregion

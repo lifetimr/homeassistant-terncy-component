@@ -32,6 +32,14 @@
       },
       "disabled_relay_status": {
         "name": "继电器通断状态"
+      },
+      "button_led": {
+        "name": "按键指示灯"
+      }
+    },
+    "sensor": {
+      "dial_angle": {
+        "name": "旋钮角度"
       }
     },
     "event": {
@@ -104,7 +112,11 @@
         "data": {
           "debug": "打印调试日志 （Debug Logging)",
           "export_device_groups": "导出设备组",
-          "export_scenes": "把小燕APP里的场景作为开关导出"
+          "export_scenes": "把小燕APP里的场景作为开关导出",
+          "mqtt_enable": "启用 /ws/mqtt 侧信道（按键指示灯与旋钮角度）",
+          "mqtt_username": "Hub MQTT 用户名",
+          "mqtt_password": "Hub MQTT 密码",
+          "mqtt_client_id": "Hub MQTT 客户端 ID（保持默认即可）"
         }
       }
     }

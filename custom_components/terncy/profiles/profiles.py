@@ -1,5 +1,7 @@
 """HA>=2023.7"""
 
+from dataclasses import replace
+
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.light import ColorMode
@@ -11,6 +13,7 @@ from ..const import (
     ACTION_LONG_PRESS,
     ACTION_ROTATION,
     ACTION_SINGLE_PRESS,
+    ATTR_BUTTON_LED,
     EVENT_ENTITY_BUTTON_EVENTS,
     EVENT_ENTITY_DIAL_EVENTS,
     HAS_EVENT_PLATFORM,
@@ -42,6 +45,7 @@ from ..const import (
 )
 from ..hass.entity_descriptions import (
     BatteryDescription,
+    DialAngleDescription,
     HumidityDescription,
     IlluminanceDescription,
     TemperatureDescription,
@@ -128,6 +132,18 @@ PROFILES: dict[int, list[TerncyEntityDescription]] = {
             translation_key="disabled_relay_status",
             value_attr=ATTR_DISABLED_RELAY_STATUS,
         ),
+        # 按键指示灯（AttrID 41 cfg-button-led-status）。该属性不在 /ws/json
+        # 词表内，只能走可选的 /ws/mqtt 侧信道，故 requires_mqtt=True：
+        # 未配置侧信道时不会创建该实体。
+        TerncySwitchDescription(
+            key="button_led",
+            sub_key="button_led",
+            entity_category=EntityCategory.CONFIG,
+            icon="mdi:led-on",
+            translation_key="button_led",
+            value_attr=ATTR_BUTTON_LED,
+            requires_mqtt=True,
+        ),
     ],
     PROFILE_DOOR_SENSOR: [
         TerncyBinarySensorDescription(
@@ -161,6 +177,8 @@ PROFILES: dict[int, list[TerncyEntityDescription]] = {
         #     event_types=[*EVENT_ENTITY_BUTTON_EVENTS, "rotation"],
         # ),
         BatteryDescription(),
+        # 旋钮角度（AttrID 33 last-dial-angle）。同样只能走可选的 /ws/mqtt 侧信道。
+        DialAngleDescription(),
     ],
     PROFILE_COLOR_LIGHT: [
         TerncyLightDescription(
@@ -337,16 +355,27 @@ if HAS_EVENT_PLATFORM:
     )
     extra_descriptions = [SINGLE, DOUBLE, LONG]
 
+    # 旋钮（PROFILE_SMART_DIAL）的 通用按钮/单击/双击/长按/旋转 都是该设备的
+    # 核心功能。原版出于"降噪"把它们默认禁用（entity_registry_enabled_default
+    # =False），而这些实体在 HA 里会显示为"不可用"。这里只对旋钮改为默认启用，
+    # 其余 profile（PIR/开关/燕尾键…）沿用原版策略，改动面最小。
+    dial_extra_descriptions = [
+        replace(d, entity_registry_enabled_default=True) for d in extra_descriptions
+    ]
+    dial_rotate = replace(ROTATE, entity_registry_enabled_default=True)
+
     for profile in EVENT_ENTITY_EVENTS_MAP:
         event_types = list(EVENT_ENTITY_EVENTS_MAP.get(profile))
+        is_dial = profile == PROFILE_SMART_DIAL
         button_desc = TerncyButtonDescription(
             event_types=event_types,
-            entity_registry_enabled_default=False,  # 旧版的通用按钮实体默认禁用
+            # 旧版的通用按钮实体：旋钮上默认启用，其它 profile 仍默认禁用
+            entity_registry_enabled_default=is_dial,
         )
         descriptions = PROFILES.get(profile)
         descriptions.append(button_desc)
         # 为最常用的 单击、双击、长按 再单独创建一个 event 实体
-        descriptions.extend(extra_descriptions)
-        # 支持旋转的话就再加个旋转
+        descriptions.extend(dial_extra_descriptions if is_dial else extra_descriptions)
+        # 支持旋转的话就再加个旋转（目前只有旋钮支持）
         if ACTION_ROTATION in event_types:
-            descriptions.append(ROTATE)
+            descriptions.append(dial_rotate if is_dial else ROTATE)

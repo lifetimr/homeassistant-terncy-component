@@ -52,6 +52,44 @@ CONF_IP = "ip"
 CONF_EXPORT_DEVICE_GROUPS = "export_device_groups"
 CONF_EXPORT_SCENES = "export_scenes"
 
+# region /ws/mqtt side channel (optional)
+#
+# python-terncy only speaks /ws/json, whose attribute vocabulary is a fixed,
+# closed table (see docs/wsjson-attrkey-table-20261012.md) that contains neither
+# the switch button-LED (AttrID 41, cfg-button-led-status) nor the dial angle
+# (AttrID 33, last-dial-angle).  Both live exclusively on the hub's /ws/mqtt
+# endpoint (the App's channel), which speaks MQTT 3.1.1 carrying protobuf.
+# The integration can open that channel as an optional side channel.
+CONF_MQTT_ENABLE = "mqtt_enable"
+CONF_MQTT_USERNAME = "mqtt_username"
+CONF_MQTT_PASSWORD = "mqtt_password"
+CONF_MQTT_CLIENT_ID = "mqtt_client_id"
+
+# The hub pins the MQTT client id to a fixed prefix and rejects anything else
+# (`invalid client id` -> CONNACK rc=4).  The prefix below is the value used by
+# the Terncy App / SDK; a short random suffix is appended for uniqueness.
+DEFAULT_MQTT_CLIENT_ID = "xy_sbk_bhrt7gl97qq1"
+
+# Synthetic attribute names used on the side channel.  They are deliberately
+# NOT part of the ws/json vocabulary, so reports from the two channels can never
+# collide.
+ATTR_BUTTON_LED = "buttonLedStatus"
+ATTR_DIAL_ANGLE = "dialAngle"
+
+# Hub internal attribute ids.
+ATTRID_BUTTON_LED = 41  # cfg-button-led-status
+ATTRID_DIAL_ANGLE = 33  # last-dial-angle
+
+# Synthetic write-able attribute -> AttrID (wired through the side channel).
+MQTT_WRITABLE_ATTRS = {ATTR_BUTTON_LED: ATTRID_BUTTON_LED}
+# AttrID -> synthetic attribute (reported through the side channel).
+MQTT_READABLE_ATTRS = {
+    ATTRID_BUTTON_LED: ATTR_BUTTON_LED,
+    ATTRID_DIAL_ANGLE: ATTR_DIAL_ANGLE,
+}
+
+# endregion
+
 ACTION_SINGLE_PRESS = "single_press"
 ACTION_DOUBLE_PRESS = "double_press"
 ACTION_TRIPLE_PRESS = "triple_press"

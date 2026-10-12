@@ -11,6 +11,11 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, Device
 from .const import (
     CONF_EXPORT_DEVICE_GROUPS,
     CONF_EXPORT_SCENES,
+    CONF_MQTT_CLIENT_ID,
+    CONF_MQTT_ENABLE,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_USERNAME,
+    DEFAULT_MQTT_CLIENT_ID,
     DOMAIN,
     HAS_EVENT_PLATFORM,
     TERNCY_MANU_NAME,
@@ -102,5 +107,12 @@ async def entry_update_listener(hass: HomeAssistant, entry: ConfigEntry):
         entry.options.get(CONF_EXPORT_DEVICE_GROUPS, True)
         != gateway.export_device_groups
         or entry.options.get(CONF_EXPORT_SCENES, False) != gateway.export_scenes
+        # the /ws/mqtt side channel is built at gateway construction time, so any
+        # change to its configuration needs a reload
+        or entry.options.get(CONF_MQTT_ENABLE, False) != gateway.mqtt_enabled
+        or entry.options.get(CONF_MQTT_USERNAME, "") != gateway.mqtt_username
+        or entry.options.get(CONF_MQTT_PASSWORD, "") != gateway.mqtt_password
+        or entry.options.get(CONF_MQTT_CLIENT_ID, DEFAULT_MQTT_CLIENT_ID)
+        != gateway.mqtt_client_id
     ):
         await hass.config_entries.async_reload(entry.entry_id)

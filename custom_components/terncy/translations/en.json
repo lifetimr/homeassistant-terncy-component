@@ -57,6 +57,14 @@
       },
       "disabled_relay_status": {
         "name": "Relay is always on"
+      },
+      "button_led": {
+        "name": "Button LED"
+      }
+    },
+    "sensor": {
+      "dial_angle": {
+        "name": "Dial Angle"
       }
     },
     "event": {
@@ -129,7 +137,11 @@
         "data": {
           "debug": "Debug Logging",
           "export_device_groups": "Export device groups",
-          "export_scenes": "Export scenes as switches"
+          "export_scenes": "Export scenes as switches",
+          "mqtt_enable": "Enable /ws/mqtt side channel (button LED & dial angle)",
+          "mqtt_username": "Hub MQTT username",
+          "mqtt_password": "Hub MQTT password",
+          "mqtt_client_id": "Hub MQTT client id (keep the default)"
         }
       }
     }

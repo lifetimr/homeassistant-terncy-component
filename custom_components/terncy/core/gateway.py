@@ -32,6 +32,7 @@ from terncy import Terncy
 from terncy.event import Connected, Disconnected, EventMessage
 
 from .device import TerncyDevice
+from .mqtt_bridge import TerncyMqttBridge
 from ..const import (
     ACTION_LONG_PRESS,
     ACTION_PRESSED,
@@ -41,12 +42,18 @@ from ..const import (
     CONF_EXPORT_DEVICE_GROUPS,
     CONF_EXPORT_SCENES,
     CONF_IP,
+    CONF_MQTT_CLIENT_ID,
+    CONF_MQTT_ENABLE,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_USERNAME,
+    DEFAULT_MQTT_CLIENT_ID,
     DEFAULT_ROOMS,
     DOMAIN,
     EVENT_DATA_CLICK_TIMES,
     EVENT_DATA_SOURCE,
     EVENT_ENTITY_BUTTON_EVENTS,
     HA_CLIENT_ID,
+    MQTT_WRITABLE_ATTRS,
     TERNCY_EVENT_SVC_ADD,
     TERNCY_EVENT_SVC_REMOVE,
     TERNCY_EVENT_SVC_UPDATE,
@@ -126,6 +133,30 @@ class TerncyGateway:
 
         # endregion
 
+        # region 可选的 /ws/mqtt 侧信道
+        # 只有配置了 MQTT 凭据时才启用；用于控制按键 LED（AttrID 41）和读取
+        # 旋钮角度（AttrID 33），这两者在 /ws/json 通道上都不可达。
+        self.mqtt_username = config_entry.options.get(CONF_MQTT_USERNAME, "")
+        self.mqtt_password = config_entry.options.get(CONF_MQTT_PASSWORD, "")
+        self.mqtt_client_id = config_entry.options.get(
+            CONF_MQTT_CLIENT_ID, DEFAULT_MQTT_CLIENT_ID
+        )
+        self.mqtt_enabled = config_entry.options.get(CONF_MQTT_ENABLE, False)
+        self.mqtt_bridge: TerncyMqttBridge | None = None
+        if self.mqtt_enabled and self.mqtt_username:
+            self.mqtt_bridge = TerncyMqttBridge(
+                ip,
+                config_entry.data[CONF_PORT],
+                config_entry.unique_id,
+                self.mqtt_username,
+                self.mqtt_password,
+                self.mqtt_client_id or DEFAULT_MQTT_CLIENT_ID,
+                self.logger,
+                self._on_mqtt_report,
+            )
+
+        # endregion
+
         async def on_hass_stop(event: Event):
             """Stop push updates when hass stops."""
             self.logger.debug("on_hass_stop")
@@ -188,11 +219,16 @@ class TerncyGateway:
 
         tern.register_event_handler(self.terncy_event_handler)
 
+        if self.mqtt_bridge is not None:
+            self.mqtt_bridge.start()
+
         self.logger.debug("Start connection to %s", tern.dev_id)
         self._async_ensure_connection()
 
     async def stop(self):
         self._stopped = True
+        if self.mqtt_bridge is not None:
+            await self.mqtt_bridge.stop()
         await self.api.stop()
 
     def _async_ensure_connection(self):
@@ -278,7 +314,20 @@ class TerncyGateway:
         #     self.logger.debug("no listener for %s", eid)
 
     async def set_attribute(self, eid: str, attr: str, value, method=0):
+        # 合成属性（按键 LED）通过可选的 /ws/mqtt 侧信道下发，
+        # /ws/json 通道没有对应的属性键。
+        if self.mqtt_bridge is not None and attr in MQTT_WRITABLE_ATTRS:
+            ok = await self.mqtt_bridge.write_attribute(
+                eid, MQTT_WRITABLE_ATTRS[attr], value
+            )
+            if ok:
+                self.update_listeners(eid, [{"attr": attr, "value": value}])
+            return
         await self.api.set_attribute(eid, attr, value, method)
+        self.update_listeners(eid, [{"attr": attr, "value": value}])
+
+    def _on_mqtt_report(self, eid: str, attr: str, value: int) -> None:
+        """Callback from the /ws/mqtt side channel (runs on the event loop)."""
         self.update_listeners(eid, [{"attr": attr, "value": value}])
 
     async def set_attributes(self, eid: str, attrs: list[AttrValue], method=0):
@@ -589,6 +638,9 @@ class TerncyGateway:
                         if (
                             not description.required_attrs
                             or set(description.required_attrs).issubset(attrs)
+                        )
+                        and not (
+                            description.requires_mqtt and self.mqtt_bridge is None
                         )
                     ]
                     if len(descriptions) > 0:

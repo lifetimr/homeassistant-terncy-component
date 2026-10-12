@@ -17,12 +17,18 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_EXPORT_DEVICE_GROUPS,
     CONF_EXPORT_SCENES,
     CONF_IP,
+    CONF_MQTT_CLIENT_ID,
+    CONF_MQTT_ENABLE,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_USERNAME,
     CONF_NAME,
+    DEFAULT_MQTT_CLIENT_ID,
     DOMAIN,
     TERNCY_HUB_SVC_NAME,
 )
@@ -215,6 +221,14 @@ class OptionsFlowHandler(OptionsFlow):
         )
         export_scenes = self.config_entry.options.get(CONF_EXPORT_SCENES, False)
 
+        # 可选的 /ws/mqtt 侧信道：按键 LED 控制与旋钮角度读取依赖它。
+        mqtt_enable = self.config_entry.options.get(CONF_MQTT_ENABLE, False)
+        mqtt_username = self.config_entry.options.get(CONF_MQTT_USERNAME, "")
+        mqtt_password = self.config_entry.options.get(CONF_MQTT_PASSWORD, "")
+        mqtt_client_id = self.config_entry.options.get(
+            CONF_MQTT_CLIENT_ID, DEFAULT_MQTT_CLIENT_ID
+        )
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -223,6 +237,22 @@ class OptionsFlowHandler(OptionsFlow):
                         CONF_EXPORT_DEVICE_GROUPS, default=export_device_groups
                     ): bool,
                     vol.Required(CONF_EXPORT_SCENES, default=export_scenes): bool,
+                    vol.Optional(
+                        CONF_MQTT_ENABLE, default=mqtt_enable
+                    ): bool,
+                    vol.Optional(
+                        CONF_MQTT_USERNAME, default=mqtt_username
+                    ): str,
+                    vol.Optional(
+                        CONF_MQTT_PASSWORD, default=mqtt_password
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_MQTT_CLIENT_ID, default=mqtt_client_id
+                    ): str,
                 }
             ),
         )
